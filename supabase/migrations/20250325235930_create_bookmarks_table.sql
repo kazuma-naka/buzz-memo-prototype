@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS public.bookmarks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    invite_list_id UUID,
+    last_updated_user_id TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT,
+    favicon_url TEXT,
+    twitter_image_url TEXT,
+    uploaded_date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    is_visible BOOLEAN NOT NULL DEFAULT TRUE,
+    memo TEXT,
+    url TEXT NOT NULL,
+    service_id UUID NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc', now()),
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT timezone('utc', now()),
+    CONSTRAINT fk_last_updated_user_id FOREIGN KEY (last_updated_user_id) REFERENCES public.users(id),
+    CONSTRAINT fk_invite_list_id FOREIGN KEY (invite_list_id) REFERENCES public.invite_lists(id),
+    CONSTRAINT fk_service_id_ FOREIGN KEY (service_id) REFERENCES public.services(id),
+    CONSTRAINT unique_user_url UNIQUE (last_updated_user_id, url)
+);
