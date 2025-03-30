@@ -7212,122 +7212,214 @@
   };
 
   // popup-src.js
-  var supabase = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
-  async function getUserIdByEmail(email) {
-    const { data, error } = await supabase.from("users").select("id").eq("email", email).maybeSingle();
-    if (error) throw error;
-    if (!data) throw new Error("Buzz Memo \u306B\u767B\u9332\u3057\u3066\u304F\u3060\u3055\u3044\u3002");
-    return data.id;
-  }
-  async function getUserProfile() {
-    return new Promise((resolve, reject) => {
-      chrome.runtime.sendMessage({ type: "getUserProfile" }, (response) => {
-        if (response?.profile) {
-          resolve(response.profile);
-        } else {
-          reject(response?.error || "Unknown error");
-        }
+  var SupabaseService = class {
+    constructor() {
+      this.client = createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+    }
+    async getUserIdByEmail(email) {
+      const { data, error } = await this.client.from("users").select("id").eq("email", email).maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("Buzz Memo \u306B\u767B\u9332\u3057\u3066\u304F\u3060\u3055\u3044\u3002");
+      return data.id;
+    }
+    async getServices(userEmail) {
+      const { data, error } = await this.client.from("services").select("id, title").eq("user_email", userEmail);
+      if (error) {
+        console.error("Error fetching services:", error);
+        throw error;
+      }
+      return data;
+    }
+    async isBookmarkSaved(userId, title) {
+      const { data, error } = await this.client.from("bookmarks").select("id").eq("last_updated_user_id", userId).eq("title", title).maybeSingle();
+      if (error) {
+        console.error("Supabase check error:", error);
+        return false;
+      }
+      return !!data;
+    }
+    async insertBookmark(bookmarkData) {
+      const { error } = await this.client.from("bookmarks").insert(bookmarkData);
+      if (error) throw error;
+      return true;
+    }
+  };
+  var AuthService = class {
+    async getUserProfile() {
+      return new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage({ type: "getUserProfile" }, (response) => {
+          if (response?.profile) {
+            resolve(response.profile);
+          } else {
+            reject(response?.error || "Unknown error");
+          }
+        });
       });
-    });
-  }
-  async function getServices(userEmail) {
-    const { data, error } = await supabase.from("services").select("id, title").eq("user_email", userEmail);
-    if (error) {
-      console.error("Error fetching services:", error);
-      throw error;
     }
-    return data;
-  }
-  async function isBookmarkSaved(userId, title) {
-    const { data, error } = await supabase.from("bookmarks").select("id").eq("last_updated_user_id", userId).eq("title", title).maybeSingle();
-    if (error) {
-      console.error("Supabase check error:", error);
-      return false;
+  };
+  var UIService = class {
+    constructor() {
+      this.loginDiv = document.getElementById("login-section");
+      this.userDiv = document.getElementById("user-section");
+      this.serviceDiv = document.getElementById("service-section");
     }
-    return !!data;
-  }
-  function setExtensionIcon(isSaved, tabId) {
-    chrome.action.setIcon({
-      path: isSaved ? "icon-saved.png" : "icon-default.png",
-      tabId
-    });
-  }
-  document.addEventListener("DOMContentLoaded", async () => {
-    const loginDiv = document.getElementById("login-section");
-    const userDiv = document.getElementById("user-section");
-    const serviceDiv = document.getElementById("service-section");
-    const getBtn = document.getElementById("save-bookmark-button");
-    let userId = null;
-    let metaInfo = null;
-    let tabId = null;
-    let services = null;
-    const updateUIAfterLogin = (user) => {
-      userDiv.innerHTML = `<strong>Logged in as:</strong> ${user.email}`;
-      getBtn.style.display = "inline-block";
-      getBtn.style.marginTop = "10px";
-      loginDiv.innerHTML = "";
-    };
-    const updateServiceList = (services2) => {
-      serviceDiv.innerHTML = `
+    updateUserUI(user) {
+      this.userDiv.innerHTML = `<strong>\u30ED\u30B0\u30A4\u30F3:</strong> ${user.email}`;
+      this.loginDiv.innerHTML = "";
+    }
+    updateServiceList(services) {
+      this.serviceDiv.innerHTML = `
       <select id="service-selector">
         <option value="">-- \u30B5\u30FC\u30D3\u30B9\u3092\u9078\u629E\u3057\u3066\u304F\u3060\u3055\u3044\u3002 --</option>
       </select>
     `;
-      serviceDiv.style.marginTop = "10px";
+      this.serviceDiv.style.marginTop = "10px";
       const serviceSelector = document.getElementById("service-selector");
-      services2.forEach((service, index2) => {
+      services.forEach((service, index2) => {
         const option = document.createElement("option");
         option.value = service.id;
         option.textContent = service.title;
         if (index2 === 0) option.selected = true;
         serviceSelector.appendChild(option);
       });
-    };
-    try {
-      const user = await getUserProfile();
-      const id = await getUserIdByEmail(user.email);
-      userId = id;
-      updateUIAfterLogin(user);
-      services = await getServices(user.email);
-      updateServiceList(services);
+    }
+    setExtensionIcon(isSaved, tabId) {
+      chrome.action.setIcon({
+        path: isSaved ? "icon-saved.png" : "icon-default.png",
+        tabId
+      });
+    }
+    renderMetaSection(meta, saveCallback) {
+      let metaDiv = document.getElementById("meta-section");
+      if (!metaDiv) {
+        metaDiv = document.createElement("div");
+        metaDiv.id = "meta-section";
+        metaDiv.style.marginTop = "10px";
+        document.body.appendChild(metaDiv);
+      }
+      metaDiv.innerHTML = `
+    <label>\u30BF\u30A4\u30C8\u30EB</label><br>
+    <input id="meta-title" value="${meta.title || ""}" style="width: 100%;" /><br><br>
+    <label>\u8AAC\u660E</label><br>
+    <textarea id="meta-description" rows="3" style="width: 100%;">${meta.description || ""}</textarea><br><br>
+    <label>Favicon URL</label><br>
+    <input id="meta-favicon" value="${meta.favicon_url || ""}" style="width: 100%;" /><br><br>
+    <label>Twitter\u753B\u50CFURL</label><br>
+    <input id="meta-twitter-img" value="${meta.twitter_image_url || ""}" style="width: 100%;" /><br><br>
+    <!-- New Publish Date input field -->
+    <label>Publish Date</label><br>
+    <input id="meta-publish-date" value="${meta.publish_date || ""}" style="width: 100%;" /><br><br>
+    <button id="save-bookmark-button" style="margin-top: 10px;">Save Bookmark</button>
+  `;
+      document.getElementById("save-bookmark-button").addEventListener("click", saveCallback);
+    }
+  };
+  var getCurrentTimestamp = () => {
+    const now = /* @__PURE__ */ new Date();
+    const pad = (n) => n.toString().padStart(2, "0");
+    return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  };
+  var BookmarkExtensionApp = class {
+    constructor() {
+      this.supabaseService = new SupabaseService();
+      this.authService = new AuthService();
+      this.uiService = new UIService();
+      this.userId = null;
+      this.metaInfo = null;
+      this.tabId = null;
+    }
+    async init() {
+      try {
+        const user = await this.authService.getUserProfile();
+        this.userId = await this.supabaseService.getUserIdByEmail(user.email);
+        this.uiService.updateUserUI(user);
+        const services = await this.supabaseService.getServices(user.email);
+        this.uiService.updateServiceList(services);
+        await this.setupTabAndMeta();
+      } catch (err) {
+        console.error("Initialization error:", err.message);
+        alert(err.message);
+        this.showLoginButton();
+      }
+    }
+    async setupTabAndMeta() {
       const [tab] = await chrome.tabs.query({
         active: true,
         currentWindow: true
       });
-      tabId = tab.id;
+      this.tabId = tab.id;
       const currentUrl = tab.url;
       const [{ result }] = await chrome.scripting.executeScript({
-        target: { tabId },
+        target: { tabId: this.tabId },
         func: () => {
           const getMeta = (name, attr = "name") => document.querySelector(`meta[${attr}="${name}"]`)?.content || null;
           return {
             title: document.title,
             description: getMeta("description"),
             favicon_url: [...document.querySelectorAll('link[rel*="icon"]')][0]?.href || null,
-            twitter_image_url: getMeta("twitter:image")
+            twitter_image_url: getMeta("twitter:image"),
+            // Set publish_date: Use meta tags or default to current date in ISO format.
+            publish_date: getMeta("article:published_time", "property") || getMeta("og:published_time", "property") || (/* @__PURE__ */ new Date()).toISOString()
           };
         }
       });
-      metaInfo = { ...result, url: currentUrl };
-      const isSaved = await isBookmarkSaved(userId, metaInfo.title);
-      setExtensionIcon(isSaved, tabId);
+      this.metaInfo = { ...result, url: currentUrl };
+      this.uiService.renderMetaSection(
+        this.metaInfo,
+        this.handleSaveBookmark.bind(this)
+      );
+      const isSaved = await this.supabaseService.isBookmarkSaved(
+        this.userId,
+        this.metaInfo.title
+      );
+      this.uiService.setExtensionIcon(isSaved, this.tabId);
       if (isSaved) {
-        const pageUrl = metaInfo.url;
-        chrome.storage.local.set({ [pageUrl]: true }, () => {
-          console.log(`Saved URL: ${pageUrl} to local storage`);
+        chrome.storage.local.set({ [this.metaInfo.url]: true }, () => {
+          console.log(`Saved URL: ${this.metaInfo.url} to local storage`);
         });
       }
-    } catch (err) {
-      console.error("User not logged in or failed to load:", err.message);
-      alert(err.message);
-      loginDiv.innerHTML = `<button id="login">Login with Google</button>`;
-      getBtn.style.display = "none";
+    }
+    async handleSaveBookmark() {
+      const serviceSelector = document.getElementById("service-selector");
+      const selectedServiceId = serviceSelector?.value;
+      if (!selectedServiceId) {
+        alert("\u26A0\uFE0F \u30B5\u30FC\u30D3\u30B9\u3092\u9078\u629E\u3057\u3066\u304F\u3060\u3055\u3044\u3002");
+        return;
+      }
+      const editedMeta = {
+        title: document.getElementById("meta-title")?.value || "",
+        description: document.getElementById("meta-description")?.value || "",
+        favicon_url: document.getElementById("meta-favicon")?.value || "",
+        twitter_image_url: document.getElementById("meta-twitter-img")?.value || "",
+        url: this.metaInfo.url || "",
+        last_updated_user_id: this.userId,
+        service_id: selectedServiceId,
+        // Use the publish_date from the input or fallback to the meta info or current timestamp
+        uploaded_date: document.getElementById("meta-publish-date")?.value || this.metaInfo.publish_date || getCurrentTimestamp()
+      };
+      try {
+        await this.supabaseService.insertBookmark(editedMeta);
+        alert("\u2705 Bookmark saved to Supabase!");
+        this.uiService.setExtensionIcon(true, this.tabId);
+        chrome.storage.local.set({ [this.metaInfo.url]: true }, () => {
+          console.log(
+            `Saved path: ${this.metaInfo.url} to local storage after insert`
+          );
+        });
+      } catch (e) {
+        console.error("Supabase insert failed:", e);
+        alert(`\u274C Failed to save bookmark:
+${e.message}`);
+      }
+    }
+    showLoginButton() {
+      this.loginDiv = document.getElementById("login-section");
+      this.loginDiv.innerHTML = `<button id="login">Login with Google</button>`;
       document.getElementById("login")?.addEventListener("click", async () => {
         try {
-          const user = await getUserProfile();
-          const id = await getUserIdByEmail(user.email);
-          userId = id;
-          updateUIAfterLogin(user);
+          const user = await this.authService.getUserProfile();
+          this.userId = await this.supabaseService.getUserIdByEmail(user.email);
+          this.uiService.updateUserUI(user);
         } catch (e) {
           console.error("Login failed:", e);
           alert(`Login failed:
@@ -7335,35 +7427,9 @@ ${e?.message || JSON.stringify(e, null, 2)}`);
         }
       });
     }
-    getBtn.addEventListener("click", async () => {
-      if (!metaInfo || !userId) return;
-      const selectedServiceId = document.getElementById("service-selector")?.value;
-      if (!selectedServiceId) {
-        alert("\u26A0\uFE0F \u30B5\u30FC\u30D3\u30B9\u3092\u9078\u629E\u3057\u3066\u304F\u3060\u3055\u3044\u3002");
-        return;
-      }
-      try {
-        const { error } = await supabase.from("bookmarks").insert({
-          title: metaInfo.title || "",
-          description: metaInfo.description || "",
-          favicon_url: metaInfo.favicon_url || "",
-          twitter_image_url: metaInfo.twitter_image_url || "",
-          url: metaInfo.url || "",
-          last_updated_user_id: userId,
-          service_id: selectedServiceId
-        });
-        if (error) throw error;
-        alert("\u2705 Bookmark saved to Supabase!");
-        setExtensionIcon(true, tabId);
-        const pagePath = metaInfo.url;
-        chrome.storage.local.set({ [pagePath]: true }, () => {
-          console.log(`Saved path: ${pagePath} to local storage after insert`);
-        });
-      } catch (e) {
-        console.error("Supabase insert failed:", e);
-        alert(`\u274C Failed to save bookmark:
-${e.message}`);
-      }
-    });
+  };
+  document.addEventListener("DOMContentLoaded", () => {
+    const app = new BookmarkExtensionApp();
+    app.init();
   });
 })();

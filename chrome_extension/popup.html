@@ -2,13 +2,17 @@
 <html>
   <head>
     <title>Meta Info</title>
+    <style>
+      html {
+        border: 1px solid black;
+      }
+    </style>
   </head>
-  <body>
+  <body style="padding: 16px 16px">
     <h1>Buzz Memo</h1>
     <div id="login-section"></div>
     <div id="user-section"></div>
     <div id="service-section"></div>
-    <button id="save-bookmark-button" style="display: none">Save Bookmark</button>
     <pre id="result"></pre>
     <script src="supabaseClient.js"></script>
     <script type="module" src="popup.js"></script>

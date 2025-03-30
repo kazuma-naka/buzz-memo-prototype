@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Mynerve } from "next/font/google";
+import { auth } from "@/auth";
 import LogoutButton from "./LogoutButton";
 
 const mynerve = Mynerve({
@@ -7,7 +8,8 @@ const mynerve = Mynerve({
   weight: "400",
 });
 
-export default function Header() {
+export default async function Header() {
+  const session = await auth();
   return (
     <header className="bg-[#91AFBB] shadow-lg">
       <div className="flex justify-between items-center h-16 max-w-xl mx-auto w-full px-4">
@@ -17,9 +19,11 @@ export default function Header() {
         >
           Buzz Memo
         </Link>
-        <nav>
-          <LogoutButton />
-        </nav>
+        {session && (
+          <nav>
+            <LogoutButton />
+          </nav>
+        )}
       </div>
     </header>
   );
