@@ -26,6 +26,7 @@ export default async function ServicePage({ params }: Props) {
       .from("bookmarks")
       .select(
         `
+        id,
         title,
         last_updated_user_id,
         description,
@@ -45,7 +46,7 @@ export default async function ServicePage({ params }: Props) {
     return (
       <div>
         <Header />
-        <BookmarkListNotLoggedIn bookmarks={bookmarks} />
+        <BookmarkList bookmarks={bookmarks} />
       </div>
     );
   } else {
@@ -74,7 +75,7 @@ export default async function ServicePage({ params }: Props) {
     return (
       <div>
         <Header />
-        <BookmarkList bookmarks={bookmarks} />
+        <BookmarkListNotLoggedIn bookmarks={bookmarks} />
       </div>
     );
   }

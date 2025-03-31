@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Mynerve } from "next/font/google";
 import { auth } from "@/auth";
 import LogoutButton from "./LogoutButton";
+import LogInButton from "./LogInButton";
 
 const mynerve = Mynerve({
   subsets: ["latin"],
@@ -19,11 +20,7 @@ export default async function Header() {
         >
           Buzz Memo
         </Link>
-        {session && (
-          <nav>
-            <LogoutButton />
-          </nav>
-        )}
+        <nav>{session ? <LogoutButton /> : <LogInButton />}</nav>
       </div>
     </header>
   );

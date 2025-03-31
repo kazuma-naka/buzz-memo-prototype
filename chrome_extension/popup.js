@@ -7298,19 +7298,21 @@
         document.body.appendChild(metaDiv);
       }
       metaDiv.innerHTML = `
-    <label>\u30BF\u30A4\u30C8\u30EB</label><br>
-    <input id="meta-title" value="${meta.title || ""}" style="width: 100%;" /><br><br>
-    <label>\u8AAC\u660E</label><br>
-    <textarea id="meta-description" rows="3" style="width: 100%;">${meta.description || ""}</textarea><br><br>
-    <label>Favicon URL</label><br>
-    <input id="meta-favicon" value="${meta.favicon_url || ""}" style="width: 100%;" /><br><br>
-    <label>Twitter\u753B\u50CFURL</label><br>
-    <input id="meta-twitter-img" value="${meta.twitter_image_url || ""}" style="width: 100%;" /><br><br>
-    <!-- New Publish Date input field -->
-    <label>Publish Date</label><br>
-    <input id="meta-publish-date" value="${meta.publish_date || ""}" style="width: 100%;" /><br><br>
-    <button id="save-bookmark-button" style="margin-top: 10px;">Save Bookmark</button>
-  `;
+      <label>\u30BF\u30A4\u30C8\u30EB</label><br>
+      <input id="meta-title" value="${meta.title || ""}" style="width: 100%;" /><br><br>
+      <label>\u8AAC\u660E</label><br>
+      <textarea id="meta-description" rows="3" style="width: 100%;">${meta.description || ""}</textarea><br><br>
+      <label>URL</label><br>
+      <input id="meta-url" value="${meta.url || ""}" style="width: 100%;" /><br><br>
+      <label>Favicon URL</label><br>
+      <input id="meta-favicon" value="${meta.favicon_url || ""}" style="width: 100%;" /><br><br>
+      <label>Twitter\u753B\u50CFURL</label><br>
+      <input id="meta-twitter-img" value="${meta.twitter_image_url || ""}" style="width: 100%;" /><br><br>
+      <!-- New Publish Date input field -->
+      <label>\u516C\u958B\u65E5</label><br>
+      <input id="meta-publish-date" value="${meta.publish_date || ""}" style="width: 100%;" /><br><br>
+      <button id="save-bookmark-button" style="margin-top: 10px;">\u4FDD\u5B58</button>
+    `;
       document.getElementById("save-bookmark-button").addEventListener("click", saveCallback);
     }
   };
@@ -7347,6 +7349,11 @@
         active: true,
         currentWindow: true
       });
+      if (tab.url.startsWith("chrome://")) {
+        console.log("This page is not supported by the extension.");
+        alert("\u3053\u306E\u30DA\u30FC\u30B8\u306F\u30B5\u30DD\u30FC\u30C8\u3055\u308C\u3066\u3044\u307E\u305B\u3093\u3002");
+        return;
+      }
       this.tabId = tab.id;
       const currentUrl = tab.url;
       const [{ result }] = await chrome.scripting.executeScript({
@@ -7358,7 +7365,6 @@
             description: getMeta("description"),
             favicon_url: [...document.querySelectorAll('link[rel*="icon"]')][0]?.href || null,
             twitter_image_url: getMeta("twitter:image"),
-            // Set publish_date: Use meta tags or default to current date in ISO format.
             publish_date: getMeta("article:published_time", "property") || getMeta("og:published_time", "property") || (/* @__PURE__ */ new Date()).toISOString()
           };
         }
@@ -7389,9 +7395,10 @@
       const editedMeta = {
         title: document.getElementById("meta-title")?.value || "",
         description: document.getElementById("meta-description")?.value || "",
+        // Get the URL value from the new input, fallback to metaInfo.url if not changed
+        url: document.getElementById("meta-url")?.value || this.metaInfo.url || "",
         favicon_url: document.getElementById("meta-favicon")?.value || "",
         twitter_image_url: document.getElementById("meta-twitter-img")?.value || "",
-        url: this.metaInfo.url || "",
         last_updated_user_id: this.userId,
         service_id: selectedServiceId,
         // Use the publish_date from the input or fallback to the meta info or current timestamp
@@ -7399,7 +7406,7 @@
       };
       try {
         await this.supabaseService.insertBookmark(editedMeta);
-        alert("\u2705 Bookmark saved to Supabase!");
+        alert(`${this.metaInfo.title} \u3092\u4FDD\u5B58\u3057\u307E\u3057\u305F\u3002`);
         this.uiService.setExtensionIcon(true, this.tabId);
         chrome.storage.local.set({ [this.metaInfo.url]: true }, () => {
           console.log(
@@ -7408,7 +7415,7 @@
         });
       } catch (e) {
         console.error("Supabase insert failed:", e);
-        alert(`\u274C Failed to save bookmark:
+        alert(`\u30D6\u30C3\u30AF\u30DE\u30FC\u30AF\u306E\u4FDD\u5B58\u306B\u5931\u6557\u3057\u307E\u3057\u305F:
 ${e.message}`);
       }
     }

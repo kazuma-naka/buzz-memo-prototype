@@ -114,29 +114,33 @@ class UIService {
       document.body.appendChild(metaDiv);
     }
     metaDiv.innerHTML = `
-    <label>タイトル</label><br>
-    <input id="meta-title" value="${
-      meta.title || ""
-    }" style="width: 100%;" /><br><br>
-    <label>説明</label><br>
-    <textarea id="meta-description" rows="3" style="width: 100%;">${
-      meta.description || ""
-    }</textarea><br><br>
-    <label>Favicon URL</label><br>
-    <input id="meta-favicon" value="${
-      meta.favicon_url || ""
-    }" style="width: 100%;" /><br><br>
-    <label>Twitter画像URL</label><br>
-    <input id="meta-twitter-img" value="${
-      meta.twitter_image_url || ""
-    }" style="width: 100%;" /><br><br>
-    <!-- New Publish Date input field -->
-    <label>Publish Date</label><br>
-    <input id="meta-publish-date" value="${
-      meta.publish_date || ""
-    }" style="width: 100%;" /><br><br>
-    <button id="save-bookmark-button" style="margin-top: 10px;">Save Bookmark</button>
-  `;
+      <label>タイトル</label><br>
+      <input id="meta-title" value="${
+        meta.title || ""
+      }" style="width: 100%;" /><br><br>
+      <label>説明</label><br>
+      <textarea id="meta-description" rows="3" style="width: 100%;">${
+        meta.description || ""
+      }</textarea><br><br>
+      <label>URL</label><br>
+      <input id="meta-url" value="${
+        meta.url || ""
+      }" style="width: 100%;" /><br><br>
+      <label>Favicon URL</label><br>
+      <input id="meta-favicon" value="${
+        meta.favicon_url || ""
+      }" style="width: 100%;" /><br><br>
+      <label>Twitter画像URL</label><br>
+      <input id="meta-twitter-img" value="${
+        meta.twitter_image_url || ""
+      }" style="width: 100%;" /><br><br>
+      <!-- New Publish Date input field -->
+      <label>公開日</label><br>
+      <input id="meta-publish-date" value="${
+        meta.publish_date || ""
+      }" style="width: 100%;" /><br><br>
+      <button id="save-bookmark-button" style="margin-top: 10px;">保存</button>
+    `;
     document
       .getElementById("save-bookmark-button")
       .addEventListener("click", saveCallback);
@@ -189,6 +193,14 @@ class BookmarkExtensionApp {
       active: true,
       currentWindow: true,
     });
+
+    // Check if the tab URL is a chrome:// URL
+    if (tab.url.startsWith("chrome://")) {
+      console.log("This page is not supported by the extension.");
+      alert("このページはサポートされていません。");
+      return; // Prevent further execution for chrome:// pages
+    }
+
     this.tabId = tab.id;
     const currentUrl = tab.url;
 
@@ -205,7 +217,6 @@ class BookmarkExtensionApp {
             [...document.querySelectorAll('link[rel*="icon"]')][0]?.href ||
             null,
           twitter_image_url: getMeta("twitter:image"),
-          // Set publish_date: Use meta tags or default to current date in ISO format.
           publish_date:
             getMeta("article:published_time", "property") ||
             getMeta("og:published_time", "property") ||
@@ -245,10 +256,12 @@ class BookmarkExtensionApp {
     const editedMeta = {
       title: document.getElementById("meta-title")?.value || "",
       description: document.getElementById("meta-description")?.value || "",
+      // Get the URL value from the new input, fallback to metaInfo.url if not changed
+      url:
+        document.getElementById("meta-url")?.value || this.metaInfo.url || "",
       favicon_url: document.getElementById("meta-favicon")?.value || "",
       twitter_image_url:
         document.getElementById("meta-twitter-img")?.value || "",
-      url: this.metaInfo.url || "",
       last_updated_user_id: this.userId,
       service_id: selectedServiceId,
       // Use the publish_date from the input or fallback to the meta info or current timestamp
@@ -260,7 +273,7 @@ class BookmarkExtensionApp {
 
     try {
       await this.supabaseService.insertBookmark(editedMeta);
-      alert("✅ Bookmark saved to Supabase!");
+      alert(`${this.metaInfo.title} を保存しました。`);
       this.uiService.setExtensionIcon(true, this.tabId);
       chrome.storage.local.set({ [this.metaInfo.url]: true }, () => {
         console.log(
@@ -269,7 +282,7 @@ class BookmarkExtensionApp {
       });
     } catch (e) {
       console.error("Supabase insert failed:", e);
-      alert(`❌ Failed to save bookmark:\n${e.message}`);
+      alert(`ブックマークの保存に失敗しました:\n${e.message}`);
     }
   }
 
